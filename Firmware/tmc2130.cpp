@@ -288,7 +288,9 @@ bool tmc2130_update_sg()
 
 void tmc2130_home_enter(uint8_t axes_mask)
 {
+#ifdef TMP2130_DBG
 	printf_P(PSTR("tmc2130_home_enter(axes_mask=0x%02x)\n"), axes_mask);
+#endif
 #ifdef TMC2130_SG_HOMING
 	if (axes_mask & 0x03) //X or Y
 		tmc2130_wait_standstill_xy(1000);
@@ -313,7 +315,9 @@ void tmc2130_home_enter(uint8_t axes_mask)
 
 void tmc2130_home_exit()
 {
+#ifdef TMP2130_DBG
 	printf_P(PSTR("tmc2130_home_exit tmc2130_sg_homing_axes_mask=0x%02x\n"), tmc2130_sg_homing_axes_mask);
+#endif
 #ifdef TMC2130_SG_HOMING
 	if (tmc2130_sg_homing_axes_mask & 0x03) //X or Y
 		tmc2130_wait_standstill_xy(1000);
@@ -792,7 +796,9 @@ void tmc2130_do_steps(uint8_t axis, uint16_t steps, uint8_t dir, uint16_t delay_
 
 void tmc2130_goto_step(uint8_t axis, uint8_t step, uint8_t dir, uint16_t delay_us, uint16_t microstep_resolution)
 {
+#if TMC2130_DBG
 	printf_P(PSTR("tmc2130_goto_step %d %d %d %d \n"), axis, step, dir, delay_us, microstep_resolution);
+#endif
 	uint8_t shift; for (shift = 0; shift < 8; shift++) if (microstep_resolution == (256 >> shift)) break;
 	uint16_t cnt = 4 * (1 << (8 - shift));
 	uint16_t mscnt = tmc2130_rd_MSCNT(axis);

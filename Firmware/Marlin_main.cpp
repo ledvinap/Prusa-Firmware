@@ -4281,6 +4281,7 @@ if((eSoundMode==e_SOUND_MODE_LOUD)||(eSoundMode==e_SOUND_MODE_ONCE))
 		int points_y = 40;
 		float offset_x = 74;
 		float offset_y = 33;
+		float offset_z = 0;
 
 		if (code_seen('X')) dimension_x = code_value();
 		if (code_seen('Y')) dimension_y = code_value();
@@ -4288,8 +4289,9 @@ if((eSoundMode==e_SOUND_MODE_LOUD)||(eSoundMode==e_SOUND_MODE_ONCE))
 		if (code_seen("YP")) { strchr_pointer+=1; points_y = code_value(); }
 		if (code_seen("XO")) { strchr_pointer+=1; offset_x = code_value(); }
 		if (code_seen("YO")) { strchr_pointer+=1; offset_y = code_value(); }
+		if (code_seen("ZO")) { strchr_pointer+=1; offset_z = code_value(); }
 		
-		bed_analysis(dimension_x,dimension_y,points_x,points_y,offset_x,offset_y);
+		bed_analysis(dimension_x,dimension_y,points_x,points_y,offset_x,offset_y,offset_z);
 		
 	} break;
 	
@@ -7760,6 +7762,7 @@ void check_babystep()
 	}	
 }
 #ifdef DIS
+#if 0
 void d_setup()
 {	
 	pinMode(D_DATACLOCK, INPUT_PULLUP);
@@ -7808,8 +7811,9 @@ float d_ReadData()
 	return output;
 
 }
+#endif 
 
-void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_points_num, float shift_x, float shift_y) {
+void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_points_num, float shift_x, float shift_y, float shift_z) {
 	int t1 = 0;
 	int t_delay = 0;
 	int digit[13];
@@ -7832,17 +7836,22 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 	char data_wldsd[70];
 	char numb_wldsd[10];
 
-	d_setup();
+//	d_setup();
 
 	if (!(axis_known_position[X_AXIS] && axis_known_position[Y_AXIS] && axis_known_position[Z_AXIS])) {
 		// We don't know where we are! HOME!
 		// Push the commands to the front of the message queue in the reverse order!
 		// There shall be always enough space reserved for these commands.
-		repeatcommand_front(); // repeat G80 with all its parameters
+		if(shift_z > 0) {
+			// z is offset, do not risk homing
+			return;
+		} else {
+			repeatcommand_front(); // repeat G80 with all its parameters
 		
-		enquecommand_front_P((PSTR("G28 W0")));
-		enquecommand_front_P((PSTR("G1 Z5")));
-		return;
+			enquecommand_front_P((PSTR("G28 W0")));
+			enquecommand_front_P((PSTR("G1 Z5")));
+			return;
+		}
 	}
 	unsigned int custom_message_type_old = custom_message_type;
 	unsigned int custom_message_state_old = custom_message_state;
@@ -7855,7 +7864,7 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 
 	card.openFile(filename_wldsd, false);
 
-	current_position[Z_AXIS] = mesh_home_z_search;
+	current_position[Z_AXIS] = mesh_home_z_search + shift_z;
 	plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], homing_feedrate[Z_AXIS] / 60, active_extruder);
 
 	int XY_AXIS_FEEDRATE = homing_feedrate[X_AXIS] / 20;
@@ -7868,7 +7877,7 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 	SERIAL_PROTOCOLPGM(",");
 	SERIAL_PROTOCOL(y_points_num);
 	SERIAL_PROTOCOLPGM("\nZ search height: ");
-	SERIAL_PROTOCOL(mesh_home_z_search);
+	SERIAL_PROTOCOL(mesh_home_z_search + shift_z);
 	SERIAL_PROTOCOLPGM("\nDimension X,Y: ");
 	SERIAL_PROTOCOL(x_dimension);
 	SERIAL_PROTOCOLPGM(",");
@@ -7880,7 +7889,7 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 		iy = mesh_point / x_points_num;
 		if (iy & 1) ix = (x_points_num - 1) - ix; // Zig zag
 		float z0 = 0.f;
-		current_position[Z_AXIS] = mesh_home_z_search;
+		current_position[Z_AXIS] = mesh_home_z_search + shift_z;
 		plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], Z_LIFT_FEEDRATE, active_extruder);
 		st_synchronize();
 
@@ -7891,9 +7900,8 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 		plan_buffer_line(current_position[X_AXIS], current_position[Y_AXIS], current_position[Z_AXIS], current_position[E_AXIS], XY_AXIS_FEEDRATE, active_extruder);
 		st_synchronize();
 
-		if (!find_bed_induction_sensor_point_z(-10.f)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we dont have data max difference is 10mm from initial point  
+		if (!find_bed_induction_sensor_point_z(shift_z, 5)) { //if we have data from z calibration max allowed difference is 1mm for each point, if we don't have data max difference is 10mm from initial point  
 			break;
-			card.closefile();
 		}
 
 
@@ -7907,7 +7915,7 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 		//delay(1000);
 		//delay(3000);
 		//t1 = millis();
-		
+#if 0		
 		//while (digitalRead(D_DATACLOCK) == LOW) {}
 		//while (digitalRead(D_DATACLOCK) == HIGH) {}
 		memset(digit, 0, sizeof(digit));
@@ -7972,15 +7980,18 @@ void bed_analysis(float x_dimension, float y_dimension, int x_points_num, int y_
 
 		
 		//row[ix] = d_ReadData();
-		
-		row[ix] = output; // current_position[Z_AXIS];
+#endif
+		float offset_z = 0;
+#ifdef PINDA_THERMISTOR
+		offset_z = temp_compensation_pinda_thermistor_offset(current_temperature_pinda);
+#endif //PINDA_THERMISTOR
+
+		row[ix] = current_position[Z_AXIS] - offset_z;
 
 		if (iy % 2 == 1 ? ix == 0 : ix == x_points_num - 1) {
 			for (int i = 0; i < x_points_num; i++) {
 				SERIAL_PROTOCOLPGM(" ");
 				SERIAL_PROTOCOL_F(row[i], 5);
-
-
 			}
 			SERIAL_PROTOCOLPGM("\n");
 		}
@@ -8974,9 +8985,7 @@ void M600_wait_for_user() {
 				if (millis() > waiting_start_time + (unsigned long)M600_TIMEOUT * 1000) {
 					lcd_display_message_fullscreen_P(_i("Press knob to preheat nozzle and continue."));////MSG_PRESS_TO_PREHEAT c=20 r=4
 					wait_for_user_state = 1;
-					setTargetHotend(0, 0);
-					setTargetHotend(0, 1);
-					setTargetHotend(0, 2);
+					setAllTargetHotends(0);
 					st_synchronize();
 					disable_e0();
 					disable_e1();

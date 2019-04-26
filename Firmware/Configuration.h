@@ -6,6 +6,8 @@
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)
 
+#define DIS
+
 // Firmware version
 #define FW_VERSION "3.4.0"
 #define FW_COMMIT_NR   1327
